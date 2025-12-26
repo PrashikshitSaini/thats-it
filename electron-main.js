@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, screen } from 'electron';
+import { app, BrowserWindow, ipcMain, screen, Tray, Menu, nativeImage } from 'electron';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -7,6 +7,49 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 let mainWindow;
+let tray;
+
+function createTray() {
+  try {
+    // Try to load an icon. If fails, use an empty image (macOS supports it for title-only trays mostly, but better to have something)
+    // Since this is ESM (module), we need to check imports. We imported 'nativeImage' incorrectly?
+    // nativeImage is exported from 'electron'.
+    // We should import it at the top.
+    // For now, let's assume we can add it to the top import or use the global require if nodeIntegration is on? No, main process is node.
+
+    // Correct implementation:
+    // We need to update the import statement at line 1 first. Let's do that in a separate edit or rely on 'electron' import.
+    // For this block, let's assume we fix the import next.
+
+    let icon = nativeImage.createEmpty();
+    // Try to use app icon if available
+    try {
+      const iconPath = path.join(__dirname, 'dist', 'icon.png');
+      const image = nativeImage.createFromPath(iconPath);
+      if (!image.isEmpty()) {
+        icon = image.resize({ width: 16, height: 16 });
+      }
+    } catch (e) { }
+
+    tray = new Tray(icon);
+    tray.setTitle("That's It");
+    tray.setToolTip("That's It Timer");
+
+    const contextMenu = Menu.buildFromTemplate([
+      { label: 'Quit', type: 'normal', click: () => app.quit() }
+    ]);
+    tray.setContextMenu(contextMenu);
+
+  } catch (e) {
+    console.log('Tray creation setup error', e);
+  }
+}
+
+function updateTrayTitle(title) {
+  if (tray) {
+    tray.setTitle(title);
+  }
+}
 
 function createWindow() {
   const { width, height } = screen.getPrimaryDisplay().workAreaSize;
@@ -58,14 +101,22 @@ function createWindow() {
 
   // --- IPC HANDLERS (Preserved from previous version) ---
 
+  // Handle Tray Timer Updates
+  ipcMain.on('update-timer', (event, timeString) => {
+    updateTrayTitle(timeString);
+  });
+
   // Listen for widget hover events
   ipcMain.on('widget-hover', (event, isHovering) => {
     if (mainWindow) {
       mainWindow.setIgnoreMouseEvents(!isHovering, { forward: true });
-      mainWindow.setAlwaysOnTop(true, 'screen-saver', 1);
-      mainWindow.show();
+      // Identify if we are in "lock" mode or "idle" to decide if we force top
+      // For now, hover effects on hidden/minimized main window might not be relevant if using Tray
+      // but we keep logic to avoid breakage.
     }
   });
+
+  createTray();
 
   // Safety timeout
   let reactAppLoaded = false;
@@ -223,6 +274,7 @@ function createWindow() {
     clearTimeout(safetyTimeout);
     if (mainWindow && mainWindow._lockInterval) clearInterval(mainWindow._lockInterval);
     mainWindow = null;
+    if (tray) tray.destroy(); // Cleanup tray
   });
 }
 
