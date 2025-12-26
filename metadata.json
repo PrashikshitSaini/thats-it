@@ -1,0 +1,5 @@
+{
+  "name": "That's It",
+  "description": "A productivity enforcement tool that locks your screen when your time is up, requiring a rigorous 64-character password to unlock.",
+  "requestFramePermissions": []
+}
